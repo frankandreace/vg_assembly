@@ -47,3 +47,8 @@ To verify that the anchors are correct use:
 ```
 vg_anchor verify-output --anchors path/to/output/anchors.json --fastq reads/used/for/alignment.fastq
 ```
+
+To get anchors directly from read alignment to graph use:
+```
+vg_anchor get-anchors-from-reads --graph path/to/graph.vg --index path/to/index.dist --output-prefix some_output_prefix --alignment path/to/alignment.gaf
+```

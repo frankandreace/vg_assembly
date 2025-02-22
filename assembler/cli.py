@@ -3,6 +3,7 @@ import time
 import os.path
 import sys
 
+from assembler.rebuilder import AnchorBuilder
 from assembler.handler import Orchestrator
 from assembler.builder import AnchorDictionary
 import assembler.qc
@@ -13,6 +14,80 @@ import assembler.helpers
 def cli():
     """Anchor processing tool for the assembler package."""
     pass
+
+@cli.command()
+@click.option(
+    "--graph",
+    required=True,
+    type=click.Path(exists=True),
+    help="Input packedgraph file (.vg)",
+)
+@click.option(
+    "--index",
+    required=True,
+    type=click.Path(exists=True),
+    help="Input distance index file (.dist)",
+)
+@click.option(
+    "--output-prefix",
+    required=True,
+    type=click.Path(),
+    help="Output prefix for the anchor dictionary",
+)
+@click.option(
+    "--alignment",
+    required=True,
+    type=click.Path(exists=True),
+    help="Input alignment file",
+)
+
+def get_anchors_from_reads(graph, index, output_prefix, alignment):
+    output_dictionary = output_prefix + ".snarl_nodes.tsv"  # output TSV with snarl boundary as nodes and nodes inside it as a list
+
+    """Identify leaf snarls in graph using SnarlDistanceIndex"""
+    t0 = time.time()
+    anchor_builder = AnchorBuilder(alignment)
+    anchor_builder.build(graph, index)  # done
+    anchor_builder.get_leaf_snarls_with_boundaries()    # done
+    print(
+        f"{len(anchor_builder.leaf_snarls)} leaf snarls and their boundaries computed in {time.time()-t0:.2f}s",
+        flush=True,
+        file=sys.stderr,
+    )
+    anchor_builder.dump_forward_reverse_snarl_boundaries_dict(output_prefix)
+    if output_dictionary:
+        anchor_builder.dump_snarl_dictionary(output_dictionary)
+
+
+    """Identify anchors based on path taken by reads"""
+    debug_file = output_prefix + ".debug_gaf_process.csv"                             # Not populating yet, but can add later
+    reads_out_file = output_prefix + ".reads_processed.tsv"                           # TSV with info on all reads in the subregion. Helpful for debugging.
+    anchor_reads_file = output_prefix + ".reads_with_anchors.tsv"                     # TSV with anchors and corresponding reads it's present in (not necessarily base level matched)
+    anchor_bpmatched_reads_file = output_prefix + ".bpmatched_reads_with_anchors.tsv" # TSV with anchors and base-level matched reads only
+    anchors_json_file = output_prefix + ".anchors.json"
+    t1 = time.time()
+
+    anchor_builder.process(debug_file, reads_out_file)
+
+    with open(anchor_reads_file, "w") as arf:
+        for anchor, read_info in anchor_builder.anchors_to_reads.items():
+            print(
+                f"{anchor}\t{read_info}",
+                file=arf
+            )
+    print("Generated anchor_reads_file")
+
+    anchor_builder.dump_bp_matched_reads()
+    with open(anchor_bpmatched_reads_file, "w") as arf:
+        for anchor, read_info in anchor_builder.anchors_to_bpmatched_reads.items():
+            print(
+                f"{anchor}\t{read_info}",
+                file=arf
+            )
+    print("Generated anchor_bpmatched_reads_file")
+
+    anchor_builder.dump_anchors_to_json_for_shasta(anchors_json_file)
+    print("anchors JSON for shasta created!")
 
 
 @cli.command()
@@ -34,12 +109,7 @@ def cli():
     type=click.Path(),
     help="Output prefix for the anchor dictionary",
 )
-# @click.option("--anchors-json", type=click.Path(), help="Output file for the anchors in the dictionary (.json)")
-# @click.option("--bandage-csv", type=click.Path(), help="Output CSV file for Bandage")
-# @click.option("--sizes-csv", type=click.Path(), help="Output CSV file for anchor sizes")
-# @click.option(
-#     "--positioned-dict", type=click.Path(), help="Output file for positioned dictionary"
-# )
+
 def build(graph, index, output_prefix):
     output_dictionary = output_prefix + ".pkl"
     bandage_csv = output_prefix + ".bandage.csv"
