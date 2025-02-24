@@ -311,9 +311,11 @@ class AnchorBuilder:
 
     def processGafLine(self, alignment_l: list, debug_file):
 
+        print("\n'\n")
         # walk through the nodes keeping the position in the node list
         # and the total length of the nodes
         read_id = alignment_l[READ_POSITION]
+        print(f"read_id is {read_id}")
         forward_dict = self.snarl_boundaries[FORWARD_DICTIONARY]
         reverse_dict = self.snarl_boundaries[REVERSE_DICTIONARY]
 
@@ -322,76 +324,137 @@ class AnchorBuilder:
         #     continue
         
         # Traversing each node in read alignment path
-        for position, node_id in enumerate(alignment_l[NODE_POSITION]):
-            walked_in_read_bps = 0
+        walked_in_read_bps = 0
+        print(f"Now we will start traversing nodes in read")
+        
+        for offset, node_id in enumerate(alignment_l[NODE_POSITION]):
+            print("\n")
+            print(f"offset: {offset} and node_id: {node_id}")
             walked_inside_anchor_bps = 0
             got_anchor = False
+            exact_match = False
+            end_node_offset = offset
 
-            # Check relative orientation of the read
-            if alignment_l[STRAND_POSITION]:   # If forward strand
-                if node_id in forward_dict:
-                    anchor_start_node = node_id
-                    anchor_end_node = forward_dict[anchor_start_node][0]
-                    anchor_start_pos_in_read = anchor_end_pos_in_read = position
-                    # Nodes inside the snarl
-                    nodes_inside = self.leafsnarl_boundary_nodes_inside_dict[(anchor_start_node,anchor_end_node)]
-                    for i, next_node in enumerate(alignment_l[NODE_POSITION][position:position+len(nodes_inside)+1]):
-                        if next_node == anchor_end_node:
-                            anchor_end_pos_in_read = anchor_start_pos_in_read + i
-                            node_handle = self.graph.get_handle(node_id)
-                            length = self.graph.get_length(node_handle)
-                            walked_inside_anchor_bps+=length
-                            ## Here also check for base level alignments
-                            cigar_string = self.get_cigar(walked_in_read_bps, alignment_l[CIGAR_POSITION], read_id, walked_inside_anchor_bps)
-                            got_anchor=True
-                            break
-                        node_handle = self.graph.get_handle(node_id)
-                        length = self.graph.get_length(node_handle)
+            if node_id in forward_dict:
+                print(f"for offset: {offset}, inside the if statement")
+                anchor_start_node = node_id
+                anchor_end_node = forward_dict[anchor_start_node][0]
+                anchor_start_pos_in_read = walked_in_read_bps
+                anchor_end_pos_in_read = 0
+                # Nodes inside the snarl
+                nodes_inside = self.leafsnarl_boundary_nodes_inside_dict[(anchor_start_node,anchor_end_node)]
+                print(f"for offset: {offset}, we found that node {anchor_start_node} exists in forward dictionary with node {anchor_end_node} as anchor_end_node. Nodes inside this snarl are - {nodes_inside}")
+                for i, next_node in enumerate(alignment_l[NODE_POSITION][offset:offset+len(nodes_inside)+5]):
+                    if next_node == anchor_end_node:
+                        print(f"Found anchor_end_node: {anchor_end_node}")
+                        length=self.get_node_length(next_node)
+                        anchor_end_node_halfway=length//2
+                        walked_inside_anchor_bps+=anchor_end_node_halfway
+                        print(f"Anchor length is: {walked_inside_anchor_bps}")
+                        cigar_string = self.get_cigar(walked_in_read_bps+anchor_start_node_halfway, alignment_l[CIGAR_POSITION], read_id, walked_inside_anchor_bps)
+                        # Check if base-level aligned?
+                        exact_match = set(cigar_string) == {":"}
+                        got_anchor=True
+                        end_node_offset+=i
+                        anchor_end_pos_in_read = anchor_start_pos_in_read + walked_inside_anchor_bps
+                        print(f"Anchor start pos in read: {anchor_start_pos_in_read} and anchor end pos in read: {anchor_end_pos_in_read}")
+                        anchor_pos_in_ref = alignment_l[START_POSITION] + anchor_start_pos_in_read
+                        break
+                    length=self.get_node_length(next_node)
+                    if i == 0:
+                        anchor_start_node_halfway=length//2
+                        walked_inside_anchor_bps+=anchor_start_node_halfway
+                        anchor_start_pos_in_read+=anchor_start_node_halfway
+                        print(f"Anchor starting node. So, walked_inside_anchor_bps is {walked_inside_anchor_bps}, i.e. half the length of actual node")
+                    else:
                         walked_inside_anchor_bps+=length
+                        print(f"At node {next_node} Didn't find anchor_end_node yet. walked_inside_anchor_bps is {walked_inside_anchor_bps}")
 
-                    if got_anchor:
-                        # Save anchor with read info in a dictionary
-                        anchor = ">".join(map(str, alignment_l[NODE_POSITION][anchor_start_pos_in_read:anchor_end_pos_in_read+1]))
-                        if anchor not in self.anchors_to_reads:
-                            self.anchors_to_reads[anchor] = []
-                        self.anchors_to_reads[anchor].append([read_id, alignment_l[STRAND_POSITION], anchor_start_pos_in_read, anchor_end_pos_in_read, walked_inside_anchor_bps, cigar_string])
-            
-                node_handle = self.graph.get_handle(node_id)
-                length = self.graph.get_length(node_handle)
-                walked_in_read_bps+=length
-            
-            else:
-                if node_id in reverse_dict:
-                    anchor_start_node = node_id
-                    anchor_end_node = reverse_dict[anchor_start_node][0]
-                    anchor_start_pos_in_read = anchor_end_pos_in_read = position
-                    # Nodes inside the snarl
-                    nodes_inside = self.leafsnarl_boundary_nodes_inside_dict[(anchor_end_node,anchor_start_node)]
-                    for i, next_node in enumerate(alignment_l[NODE_POSITION][position:position+len(nodes_inside)+1]):
-                        if next_node == anchor_end_node:
-                            anchor_end_pos_in_read = anchor_start_pos_in_read + i
-                            node_handle = self.graph.get_handle(node_id)
-                            length = self.graph.get_length(node_handle)
-                            walked_inside_anchor_bps+=length
-                            ## Here also check for base level alignments
-                            cigar_string = self.get_cigar(walked_in_read_bps, alignment_l[CIGAR_POSITION], read_id, walked_inside_anchor_bps)
-                            got_anchor=True
-                            break
-                        node_handle = self.graph.get_handle(node_id)
-                        length = self.graph.get_length(node_handle)
+                if got_anchor:
+                    # Save anchor with read info in a dictionary
+                    anchor = ">".join(map(str, alignment_l[NODE_POSITION][offset:end_node_offset+1]))
+                    print(f"Anchor generated from forward dictionary: {anchor}")
+                    # add a line to debug file
+                    print(f"{read_id}\t{anchor}\tTrue\t{exact_match}", file=debug_file)
+                    if anchor not in self.anchors_to_reads:
+                        self.anchors_to_reads[anchor] = []
+                    self.anchors_to_reads[anchor].append([read_id, alignment_l[STRAND_POSITION], anchor_start_pos_in_read, anchor_end_pos_in_read, walked_inside_anchor_bps, anchor_pos_in_ref, cigar_string])
+                    length=self.get_node_length(node_id)
+                    walked_in_read_bps+=length
+                    print(f"We found the anchor!!! Till this point, we have walked {walked_in_read_bps} bps in the read.")
+                    continue
+                else:
+                    length=self.get_node_length(node_id)
+                    walked_in_read_bps+=length
+                    print(f"We found the potential anchor start_node, but on traversing further, we didn't hit the anchor end_node. Till this point, we have walked {walked_in_read_bps} bps in the read.")
+                    continue
+        
+
+            if node_id in reverse_dict:
+                print(f"for offset: {offset}, inside the elif statement")
+                anchor_start_node = node_id
+                anchor_end_node = reverse_dict[anchor_start_node][0]
+                anchor_start_pos_in_read = walked_in_read_bps
+                anchor_end_pos_in_read = 0
+                # Nodes inside the snarl
+                nodes_inside = self.leafsnarl_boundary_nodes_inside_dict[(anchor_end_node,anchor_start_node)]
+                print(f"for offset: {offset}, we found that node {anchor_start_node} exists in reverse dictionary with node {anchor_end_node} as anchor_end_node. Nodes inside this snarl are - {nodes_inside}")
+                for i, next_node in enumerate(alignment_l[NODE_POSITION][offset:offset+len(nodes_inside)+5]):
+                    if next_node == anchor_end_node:
+                        print(f"Found anchor_end_node: {anchor_end_node}")
+                        length=self.get_node_length(next_node)
+                        anchor_end_node_halfway=length//2
+                        walked_inside_anchor_bps+=anchor_end_node_halfway
+                        print(f"Anchor length is: {walked_inside_anchor_bps}")
+                        cigar_string = self.get_cigar(walked_in_read_bps+anchor_start_node_halfway, alignment_l[CIGAR_POSITION], read_id, walked_inside_anchor_bps)
+                        # Check if base-level aligned?
+                        exact_match = set(cigar_string) == {":"}
+                        got_anchor=True
+                        end_node_offset+=i
+                        anchor_end_pos_in_read = anchor_start_pos_in_read + walked_inside_anchor_bps
+                        print(f"Anchor start pos in read: {anchor_start_pos_in_read} and anchor end pos in read: {anchor_end_pos_in_read}")
+                        anchor_pos_in_ref = alignment_l[START_POSITION] + anchor_start_pos_in_read
+                        break
+                    length=self.get_node_length(next_node)
+                    if i == 0:
+                        anchor_start_node_halfway=length//2
+                        anchor_start_pos_in_read+=anchor_start_node_halfway
+                        walked_inside_anchor_bps+=anchor_start_node_halfway
+                        print(f"Anchor starting node. So, walked_inside_anchor_bps is {walked_inside_anchor_bps}, i.e. half the length of actual node")
+                    else:
                         walked_inside_anchor_bps+=length
+                        print(f"At node {next_node} Didn't find anchor_end_node yet. walked_inside_anchor_bps is {walked_inside_anchor_bps}")
 
-                    if got_anchor:
-                        # Save anchor with read info in a dictionary
-                        anchor = ">".join(map(str, alignment_l[NODE_POSITION][anchor_start_pos_in_read:anchor_end_pos_in_read+1][::-1]))
-                        if anchor not in self.anchors_to_reads:
-                            self.anchors_to_reads[anchor] = []
-                        self.anchors_to_reads[anchor].append([read_id, alignment_l[STRAND_POSITION], anchor_start_pos_in_read, anchor_end_pos_in_read, walked_inside_anchor_bps, cigar_string])
-                
-                node_handle = self.graph.get_handle(node_id)
-                length = self.graph.get_length(node_handle)
-                walked_in_read_bps+=length
+                if got_anchor:
+                    # Save anchor with read info in a dictionary
+                    anchor = ">".join(map(str, alignment_l[NODE_POSITION][offset:end_node_offset+1][::-1]))
+                    print(f"Anchor generated from reverse dictionary: {anchor}")
+                    # add a line to debug file
+                    print(f"{read_id}\t{anchor}\tTrue\t{exact_match}", file=debug_file)
+                    if anchor not in self.anchors_to_reads:
+                        self.anchors_to_reads[anchor] = []
+                    self.anchors_to_reads[anchor].append([read_id, alignment_l[STRAND_POSITION], anchor_start_pos_in_read, anchor_end_pos_in_read, walked_inside_anchor_bps, anchor_pos_in_ref, cigar_string])
+                    length=self.get_node_length(node_id)
+                    walked_in_read_bps+=length
+                    print(f"We found the anchor!!! Till this point, we have walked {walked_in_read_bps} bps in the read.")
+                    continue
+                else:
+                    length=self.get_node_length(node_id)
+                    walked_in_read_bps+=length
+                    print(f"We found the potential anchor start_node, but on traversing further, we didn't hit the anchor end_node. Till this point, we have walked {walked_in_read_bps} bps in the read.")
+                    continue
+            
+            length=self.get_node_length(node_id)
+            walked_in_read_bps+=length
+            print(f"for offset: {offset}, current node not found in forward or reverse dict. Till this point, we have walked {walked_in_read_bps} bps in the read")
 
+
+    def get_node_length(self, node_id: int):
+
+        node_handle = self.graph.get_handle(node_id)
+        node_length = self.graph.get_length(node_handle)
+
+        return(node_length)
 
 
     def get_cigar(self, walked_in_read_bps: int, cs_line: list, read_id: str, walked_inside_anchor_bps: int):
@@ -424,7 +487,7 @@ class AnchorBuilder:
         
         for anchor, reads in self.anchors_to_reads.items():
             for read in reads:
-                cigar = read[5]
+                cigar = read[-1]
                 if set(cigar) == {":"}:   # perfect base-level matches
                     if anchor not in self.anchors_to_bpmatched_reads:
                         self.anchors_to_bpmatched_reads[anchor] = []

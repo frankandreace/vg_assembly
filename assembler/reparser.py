@@ -55,9 +55,10 @@ def processGafLine(gaf_line: str, reads_out_file: str):
         del line_elements[1:3]
     #print(f"# el: {len(line_elements)}, expected_tags: {EXPECTED_GAF_TAGS}")
     # First verify that the gaf line contains an usable alignment
-    if (len(line_elements) == EXPECTED_GAF_TAGS) and int(
-        line_elements[MAP_Q_ID]
-    ) == EXPECTED_MAP_Q:
+    # if (len(line_elements) == EXPECTED_GAF_TAGS) and int(
+    #     line_elements[MAP_Q_ID]
+    # ) == EXPECTED_MAP_Q:
+    if (len(line_elements) == EXPECTED_GAF_TAGS):   # removed requirement for MAPQ
         # print(f"processing read {line_elements[READ_P]}")
         # extract needed tags
         read_name = line_elements[READ_NAME_ID]
@@ -97,7 +98,7 @@ def processGafLine(gaf_line: str, reads_out_file: str):
         with open(reads_out_file, "a") as reads_f:
             print(f"{read_name}\t{read_len}\t{relative_strand}\t{path_start}\t{path_end}\t{nodes_list}\t{orientation_list}\t{cs_line}", file=reads_f)
 
-        return [
+        parsed_data = [
             read_name,
             read_len,
             relative_strand,
@@ -107,7 +108,7 @@ def processGafLine(gaf_line: str, reads_out_file: str):
             orientation_list,
             cs_line,
         ]
-    
+        return parsed_data
     return None
 
 
