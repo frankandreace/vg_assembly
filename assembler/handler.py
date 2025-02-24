@@ -33,8 +33,8 @@ class Orchestrator:
         It reads the gaf file line by line and if the line is valid, it processes it to find anchors that align to it.
         """
         times = []
-        with open(debug_outfile) as debug:
-            print("READ_ID\tANCHOR\tIS_MATCHING_NODES\tIS_BASELEVEL_ALIGNED")
+        with open(debug_outfile, 'w') as debug:
+            debug.write("READ_ID\tANCHOR\tIS_MATCHING_NODES\tIS_BASELEVEL_ALIGNED\n")
             for line in self.gaf_reader.get_lines():
                 t0 = time.time()
                 parsed_data = lp.processGafLine(line)
