@@ -168,13 +168,13 @@ class AnchorDictionary:
         # if self.graph.get_is_reverse(node_handle):
         #     orientation = False
         self.peek_orientations.append(orientation)
-        if len(self.peek_orientations) >= PEEK_SIZE:
-            num_forward = self.peek_orientations.count(True)
-            self.path_orientation = (
-                FORWARD_DICTIONARY if num_forward >= (PEEK_SIZE // 2) else REVERSE_DICTIONARY
-            )
-            self.peek_orientations = []
-            return False
+        # if len(self.peek_orientations) >= PEEK_SIZE:
+        #     num_forward = self.peek_orientations.count(True)
+        #     self.path_orientation = (
+        #         FORWARD_DICTIONARY if num_forward >= (PEEK_SIZE // 2) else REVERSE_DICTIONARY
+        #     )
+        #     self.peek_orientations = []
+        #     return False
         return True
 
     def traverse_step_iteratee(self, step_handle) -> bool:
@@ -377,17 +377,18 @@ class AnchorDictionary:
             self.keep_path_scan = True
             self.count_in_path = True
             self.current_anchor = Anchor()
-            # print(
-            #     f"Processing path {path_name}...",
-            #     end=" ",file=stderr,
-            # )
-            # t0 = time.time()
+        
+            self.peek_orientations = []
             self.graph.for_each_step_in_path(
                 path_handle, self.get_path_orientation_iteratee
             )
- 
+            num_forward = self.peek_orientations.count(True)
+            self.path_orientation = (
+                FORWARD_DICTIONARY if num_forward >= (PEEK_SIZE // 2) else REVERSE_DICTIONARY
+            )
+
             self.graph.for_each_step_in_path(path_handle, self.traverse_step_iteratee)
-            # print(f"in {time.time()-t0:.2f} seconds.")
+
         print(f"done in {time.time()-t_0}")
 
     def generate_anchors_boundaries(self, extend=False):
